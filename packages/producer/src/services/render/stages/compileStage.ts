@@ -32,8 +32,8 @@ import {
   resolveDeviceScaleFactor,
   writeCompiledArtifacts,
   type CompositionMetadata,
-  type RenderJob,
-} from "../../renderOrchestrator.js";
+} from "../shared.js";
+import type { RenderJob } from "../../renderOrchestrator.js";
 
 export interface CompileStageInput {
   projectDir: string;

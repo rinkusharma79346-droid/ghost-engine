@@ -47,8 +47,8 @@ import {
   projectBrowserEndToCompositionTimeline,
   writeCompiledArtifacts,
   type CompositionMetadata,
-  type RenderJob,
-} from "../../renderOrchestrator.js";
+} from "../shared.js";
+import type { RenderJob } from "../../renderOrchestrator.js";
 
 const BROWSER_MEDIA_EPSILON = 0.0001;
 
