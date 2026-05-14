@@ -344,6 +344,25 @@ function discoverTestSuites(
     tryAddSuite(entry, dir);
   }
 
+  // CLI filter, failures/ output, baselines, and the suite summary all key
+  // off `suite.id`. If a future fixture lands at `tests/distributed/<x>/`
+  // while a top-level `tests/<x>/` already exists they would silently
+  // collide: both pushed with the same `id`, both running under one name,
+  // and the second to write `failures/` overwrites the first. Fail fast
+  // here naming both source dirs so the conflict is fixable at author time.
+  const seen = new Map<string, string>();
+  for (const suite of suites) {
+    const prior = seen.get(suite.id);
+    if (prior !== undefined) {
+      throw new Error(
+        `[regression-harness] duplicate fixture id ${JSON.stringify(suite.id)}: ` +
+          `${prior} and ${suite.dir}. Rename one of the directories so the CLI ` +
+          `--filter, failures/ output, and summary key onto a single suite.`,
+      );
+    }
+    seen.set(suite.id, suite.dir);
+  }
+
   return suites;
 }
 
