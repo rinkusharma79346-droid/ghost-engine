@@ -25,8 +25,11 @@ export function createStudioPositionSeekReapplyScript(): string {
 function studioPositionSeekReapplyRuntime(): void {
   const OFFSET_X_PROP = "--hf-studio-offset-x";
   const OFFSET_Y_PROP = "--hf-studio-offset-y";
+  const WIDTH_PROP = "--hf-studio-width";
+  const HEIGHT_PROP = "--hf-studio-height";
   const ROTATION_PROP = "--hf-studio-rotation";
   const PATH_OFFSET_ATTR = "data-hf-studio-path-offset";
+  const BOX_SIZE_ATTR = "data-hf-studio-box-size";
   const ROTATION_ATTR = "data-hf-studio-rotation";
   const ORIGINAL_TRANSLATE_ATTR = "data-hf-studio-original-translate";
   const ORIGINAL_ROTATE_ATTR = "data-hf-studio-original-rotate";
@@ -36,6 +39,7 @@ function studioPositionSeekReapplyRuntime(): void {
 
   if (
     !document.querySelector("[" + PATH_OFFSET_ATTR + '="true"]') &&
+    !document.querySelector("[" + BOX_SIZE_ATTR + '="true"]') &&
     !document.querySelector("[" + ROTATION_ATTR + '="true"]') &&
     !document.querySelector("[" + MOTION_ATTR + "]")
   )
@@ -208,6 +212,15 @@ function studioPositionSeekReapplyRuntime(): void {
           ),
         );
       }
+    }
+    const boxSizeEls = document.querySelectorAll("[" + BOX_SIZE_ATTR + '="true"]');
+    for (let i = 0; i < boxSizeEls.length; i++) {
+      const el = boxSizeEls[i] as HTMLElement;
+      if (!(el instanceof HTMLElement)) continue;
+      const w = el.style.getPropertyValue(WIDTH_PROP);
+      const h = el.style.getPropertyValue(HEIGHT_PROP);
+      if (w) el.style.setProperty("width", w);
+      if (h) el.style.setProperty("height", h);
     }
     const rotEls = document.querySelectorAll("[" + ROTATION_ATTR + '="true"]');
     for (let i = 0; i < rotEls.length; i++) {
