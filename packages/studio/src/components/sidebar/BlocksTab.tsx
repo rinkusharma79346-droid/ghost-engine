@@ -290,6 +290,7 @@ function BlockCard({
   posterUrl,
   videoUrl,
   onAdd,
+  onShowPrompt,
   onPreview,
 }: {
   name: string;
@@ -366,7 +367,7 @@ function BlockCard({
       const prompt = buildAgentPrompt(title, name, description, category, blockType, context);
       onShowPrompt?.({ title, prompt });
     },
-    [title, name, description, category, blockType, activeCompPath, compositionDimensions],
+    [title, name, description, category, blockType, activeCompPath, compositionDimensions, onShowPrompt],
   );
 
   return (
