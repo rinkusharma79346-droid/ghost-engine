@@ -208,6 +208,14 @@ export const DEFAULT_CONFIG: EngineConfig = {
   debug: false,
 };
 
+// ── Ghost Engine: Force GPU override ────────────────────────────────────
+// When GHOST_FORCE_GPU=1 is set, override browserGpuMode to "auto" (which
+// will then resolve to "hardware" thanks to the GHOST_FORCE_GPU fallback in
+// resolveBrowserGpuMode). This is a Ghost Engine modification that enables
+// GPU-accelerated rendering in environments like Google Colab where the
+// WebGL probe may fail but a GPU is actually available.
+const GHOST_FORCE_GPU_ACTIVE = process.env.GHOST_FORCE_GPU === "1";
+
 /**
  * Resolve configuration by merging: defaults ← env vars ← explicit overrides.
  * Env vars provide backward compatibility during migration; explicit config
@@ -227,8 +235,14 @@ export function resolveConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     return raw === "true";
   };
   const envBrowserGpuMode = (): EngineConfig["browserGpuMode"] => {
+    // Ghost Engine: GHOST_GPU_MODE takes highest priority
+    const ghostMode = env("GHOST_GPU_MODE");
+    if (ghostMode === "hardware" || ghostMode === "software" || ghostMode === "auto") return ghostMode;
     const raw = env("PRODUCER_BROWSER_GPU_MODE");
     if (raw === "hardware" || raw === "software" || raw === "auto") return raw;
+    // Ghost Engine: When GHOST_FORCE_GPU is set, prefer "auto" so the probe
+    // can resolve to hardware via the GHOST_FORCE_GPU fallback path
+    if (GHOST_FORCE_GPU_ACTIVE) return "auto";
     return DEFAULT_CONFIG.browserGpuMode;
   };
 

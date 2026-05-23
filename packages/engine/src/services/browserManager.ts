@@ -179,6 +179,10 @@ export function resolveBrowserGpuMode(
     platform?: NodeJS.Platform;
   } = {},
 ): Promise<"software" | "hardware"> {
+  // Ghost Engine: Allow environment variable override
+  if (process.env.GHOST_GPU_MODE === "hardware") return Promise.resolve("hardware" as const);
+  if (process.env.GHOST_GPU_MODE === "software") return Promise.resolve("software" as const);
+
   if (mode !== "auto") return Promise.resolve(mode);
   if (_autoBrowserGpuModeCache) return _autoBrowserGpuModeCache;
 
@@ -227,6 +231,12 @@ export function resolveBrowserGpuMode(
       logResolvedBrowserGpuMode(resolved, hasWebGL ? "WebGL probe succeeded" : "WebGL unavailable");
       return resolved;
     } catch (err) {
+      // Ghost Engine: Force hardware mode for environments like Google Colab
+      // where the WebGL probe may fail but GPU is actually available
+      if (process.env.GHOST_FORCE_GPU === "1") {
+        logResolvedBrowserGpuMode("hardware", "GHOST_FORCE_GPU=1 override");
+        return "hardware" as const;
+      }
       logResolvedBrowserGpuMode(
         "software",
         `probe failed (${err instanceof Error ? err.message : String(err)})`,
@@ -584,7 +594,13 @@ function getBrowserGpuArgs(
     case "win32":
       return ["--use-gl=angle", "--use-angle=d3d11", "--enable-gpu-rasterization"];
     case "linux":
-      return ["--use-gl=egl", "--enable-gpu-rasterization"];
+      return [
+        "--use-gl=egl",
+        "--enable-gpu-rasterization",
+        "--enable-gpu",
+        "--enable-features=VaapiVideoDecoder",
+        "--force-gpu-mem-available-mb=8192",
+      ];
     default:
       return ["--enable-gpu-rasterization"];
   }

@@ -161,7 +161,17 @@ export function buildEncoderArgs(
         }
       }
     } else {
-      const encoderName = codec === "h264" ? "libx264" : "libx265";
+      // Ghost Engine: GHOST_NVENC=1 allows forcing NVENC even when auto-detect
+      // doesn't find it (e.g. in containers where nvidia-smi isn't in PATH)
+      let encoderName: string;
+      const ghostNvenc = process.env.GHOST_NVENC === "1";
+      if (ghostNvenc && codec === "h264") {
+        encoderName = "h264_nvenc";
+      } else if (ghostNvenc && codec === "h265") {
+        encoderName = "hevc_nvenc";
+      } else {
+        encoderName = codec === "h264" ? "libx264" : "libx265";
+      }
       args.push("-c:v", encoderName, "-preset", preset);
       if (bitrate) args.push("-b:v", bitrate);
       else args.push("-crf", String(quality));
