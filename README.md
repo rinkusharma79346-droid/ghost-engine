@@ -1,123 +1,234 @@
-# Ghost Engine v1.0
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/logo/light.svg">
+    <img alt="HyperFrames" src="docs/logo/light.svg" width="300">
+  </picture>
+</p>
 
-**GPU-Accelerated HyperFrames Renderer** — After Effects quality post-processing for HyperFrames compositions.
+<p align="center">
+  <a href="https://www.npmjs.com/package/hyperframes"><img src="https://img.shields.io/npm/v/hyperframes.svg?style=flat" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/hyperframes"><img src="https://img.shields.io/npm/dm/hyperframes.svg?style=flat" alt="npm downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js"></a>
+  <a href="https://discord.gg/EbK98HBPdk"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+</p>
 
-## What It Does
+<p align="center"><b>Write HTML. Render video. Built for agents.</b></p>
 
-Ghost Engine wraps [HyperFrames](https://github.com/heygen-com/hyperframes) and adds a GPU post-processing pipeline:
+<p align="center">
+  <img src="https://static.heygen.ai/hyperframes-oss/docs/images/hfgif-1280.webp" alt="HyperFrames demo — HTML code on the left transforms into a rendered video on the right" width="800">
+</p>
 
-| Pass | Engine | What Happens |
-|------|--------|-------------|
-| **Pass 1** | HyperFrames | Renders base composition → PNG frames |
-| **Pass 2** | Ghost Engine (WebGL2) | Applies bloom, chromatic aberration, film grain, vignette, motion blur |
-| **Pass 3** | FFmpeg | Encodes post-processed frames → final video |
+Hyperframes is an open-source video rendering framework that lets you create, preview, and render HTML-based video compositions — with first-class support for AI agents.
 
-## Effects
+## Quick Start
 
-| Effect | Description | GPU Shader |
-|--------|------------|-----------|
-| **Bloom** | Multi-pass gaussian bloom on bright pixels | ✅ WebGL2 fragment shader |
-| **Chromatic Aberration** | Radial RGB channel split with fringe | ✅ WebGL2 fragment shader |
-| **Film Grain** | Deterministic per-frame luminance + color noise | ✅ WebGL2 fragment shader |
-| **Vignette** | Cinematic edge darkening with warm tint | ✅ WebGL2 fragment shader |
-| **Motion Blur** | Velocity-based directional blur | ✅ WebGL2 fragment shader |
+### Option 1: With an AI coding agent (recommended)
 
-## Install
+Install the HyperFrames skills, then describe the video you want:
 
-### From GitHub (recommended)
 ```bash
-npm install -g rinkusharma79346-droid/ghost-engine
+npx skills add heygen-com/hyperframes
 ```
 
-### From npm (when published)
+This teaches your agent (Claude Code, Cursor, Gemini CLI, Codex) how to write correct compositions, GSAP timelines, Tailwind v4 browser-runtime styles, and first-party adapter animations. In Claude Code, the skills register as slash commands — invoke `/hyperframes` to author compositions, `/hyperframes-cli` for the dev-loop commands (init, lint, preview, render), `/hyperframes-media` for asset preprocessing (TTS, transcription, background removal), `/tailwind` for `init --tailwind` projects, `/gsap` for timeline animation help, or the adapter skills (`/animejs`, `/css-animations`, `/lottie`, `/three`, `/waapi`) when a composition uses those runtimes.
+
+For Claude Design, open [`docs/guides/claude-design-hyperframes.md`](https://github.com/heygen-com/hyperframes/blob/main/docs/guides/claude-design-hyperframes.md) on GitHub and click the download button (↓) to save it, then attach the file to your Claude Design chat. It produces a valid first draft; refine in any AI coding agent. See the [Claude Design guide](https://hyperframes.heygen.com/guides/claude-design).
+
+For Codex specifically, the same skills are also exposed as an [OpenAI Codex plugin](./.codex-plugin/plugin.json) — sparse-install just the plugin surface:
+
 ```bash
-npm install -g ghost-engine
-# or use without installing:
-npx ghost-engine render ./composition --output video.mp4
+codex plugin marketplace add heygen-com/hyperframes --sparse .codex-plugin --sparse skills --sparse assets
 ```
 
-## Usage
+For Claude Code, the repo also ships a [Claude Code plugin manifest](./.claude-plugin/plugin.json): test it locally with `claude --plugin-dir .`. The manifest intentionally omits `skills` because Claude Code auto-discovers the root `skills/` directory by convention, and for marketplace submission use the title `HyperFrames by HeyGen` plus the black/white icon assets at [`assets/claude-code-icon-dark.svg`](./assets/claude-code-icon-dark.svg) and [`assets/claude-code-icon-light.svg`](./assets/claude-code-icon-light.svg) for the two theme slots.
+For Cursor, the same skills are packaged as a [Cursor plugin](./.cursor-plugin/plugin.json) — install from the Cursor Marketplace, or sideload by cloning this repo and pointing **Settings → Plugins → Load unpacked** at the repo root.
 
-### Render with GPU effects (default: bloom + chromatic + grain + vignette)
+#### Try it: example prompts
+
+Copy any of these into your agent to get started. The `/hyperframes` prefix loads the skill context explicitly so you get correct output the first time.
+
+**Cold start — describe what you want:**
+
+> Using `/hyperframes`, create a 10-second product intro with a fade-in title, a background video, and background music.
+
+**Warm start — turn existing context into a video:**
+
+> Take a look at this GitHub repo https://github.com/heygen-com/hyperframes and explain its uses and architecture to me using `/hyperframes`.
+
+> Summarize the attached PDF into a 45-second pitch video using `/hyperframes`.
+
+> Turn this CSV into an animated bar chart race using `/hyperframes`.
+
+**Format-specific:**
+
+> Make a 9:16 TikTok-style hook video about [topic] using `/hyperframes`, with bouncy captions synced to a TTS narration.
+
+**Iterate — talk to the agent like a video editor:**
+
+> Make the title 2x bigger, swap to dark mode, and add a fade-out at the end.
+
+> Add a lower third at 0:03 with my name and title.
+
+The agent handles scaffolding, animation, and rendering. See the [prompting guide](https://hyperframes.heygen.com/guides/prompting) for more patterns.
+
+### Option 2: Start a project manually
+
 ```bash
-ghost-engine render ./my-composition --output video.mp4
+npx hyperframes init my-video
+cd my-video
+npx hyperframes preview      # preview in browser (live reload)
+npx hyperframes render       # render to MP4
 ```
 
-### Render with all effects
+`hyperframes init` installs skills automatically, so you can hand off to your AI agent at any point.
+
+**Requirements:** Node.js >= 22, FFmpeg
+
+## Why Hyperframes?
+
+- **HTML-native** — compositions are HTML files with data attributes. No React, no proprietary DSL.
+- **AI-first** — agents already speak HTML. The CLI is non-interactive by default, designed for agent-driven workflows.
+- **Deterministic rendering** — same input = identical output. Built for automated pipelines.
+- **Frame Adapter pattern** — bring your own animation runtime (GSAP, Lottie, CSS, Three.js).
+
+## Hyperframes vs Remotion
+
+Hyperframes is inspired by [Remotion](https://www.remotion.dev) — we used Remotion at HeyGen in production, learned a ton from it, and kept attribution comments in the source for the patterns it pioneered (Chrome launch flags, image2pipe → FFmpeg streaming, frame buffering). Both tools drive headless Chrome and both are deterministic. They differ on one decision: **what the primary author writes.** Remotion's bet is React components; Hyperframes' bet is HTML.
+
+|                                                       | **Hyperframes**                | **Remotion**                      |
+| ----------------------------------------------------- | ------------------------------ | --------------------------------- |
+| Authoring                                             | HTML + CSS + GSAP              | React components (TSX)            |
+| Build step                                            | None; `index.html` plays as-is | Required (bundler)                |
+| Library-clock animations (GSAP, Anime.js, Motion One) | Seekable, frame-accurate       | Plays at wall-clock during render |
+| Arbitrary HTML / CSS passthrough                      | Paste and animate              | Rewrite as JSX                    |
+| Distributed rendering                                 | Single-machine today           | Lambda, production-ready          |
+
+### Licensing: fully open source vs source-available
+
+**Hyperframes is completely open source under [Apache 2.0](LICENSE)** — an OSI-approved license. Use it commercially at any scale, with no per-render fees, no seat caps, no company-size thresholds.
+
+**Remotion is [source-available, not open source](https://www.remotion.pro/license).** The code is on GitHub under a custom Remotion License that requires a paid company license above small-team thresholds. It's a great product with a real team behind it — but if open-source licensing matters to you (OSI compliance, redistribution rights, no per-use fees), that's a first-order decision point.
+
+Full write-up with benchmarks, an honest list of where each tool wins, and a GSAP side-by-side: **[Hyperframes vs Remotion guide](https://hyperframes.heygen.com/guides/hyperframes-vs-remotion)**.
+
+## How It Works
+
+Define your video as HTML with data attributes:
+
+```html
+<div id="stage" data-composition-id="my-video" data-start="0" data-width="1920" data-height="1080">
+  <video
+    id="clip-1"
+    data-start="0"
+    data-duration="5"
+    data-track-index="0"
+    src="intro.mp4"
+    muted
+    playsinline
+  ></video>
+  <img
+    id="overlay"
+    class="clip"
+    data-start="2"
+    data-duration="3"
+    data-track-index="1"
+    src="logo.png"
+  />
+  <audio
+    id="bg-music"
+    data-start="0"
+    data-duration="9"
+    data-track-index="2"
+    data-volume="0.5"
+    src="music.wav"
+  ></audio>
+</div>
+```
+
+Preview instantly in the browser. Render to MP4 locally or in Docker.
+
+## Catalog
+
+50+ ready-to-use blocks and components — social overlays, shader transitions, data visualizations, and cinematic effects:
+
 ```bash
-ghost-engine render ./my-composition --output video.mp4 --effects all
+npx hyperframes add flash-through-white   # shader transition
+npx hyperframes add instagram-follow      # social overlay
+npx hyperframes add data-chart            # animated chart
 ```
 
-### Render with specific effects
+Browse the full catalog at **[hyperframes.heygen.com/catalog](https://hyperframes.heygen.com/catalog/blocks/data-chart)**.
+
+## Documentation
+
+Full documentation at **[hyperframes.heygen.com/introduction](https://hyperframes.heygen.com/introduction)** — [Quickstart](https://hyperframes.heygen.com/quickstart) | [Guides](https://hyperframes.heygen.com/guides/gsap-animation) | [API Reference](https://hyperframes.heygen.com/packages/core) | [Catalog](https://hyperframes.heygen.com/catalog/blocks/data-chart)
+
+## Packages
+
+| Package                                                          | Description                                                 |
+| ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`hyperframes`](packages/cli)                                    | CLI — create, preview, lint, and render compositions        |
+| [`@hyperframes/core`](packages/core)                             | Types, parsers, generators, linter, runtime, frame adapters |
+| [`@hyperframes/engine`](packages/engine)                         | Seekable page-to-video capture engine (Puppeteer + FFmpeg)  |
+| [`@hyperframes/producer`](packages/producer)                     | Full rendering pipeline (capture + encode + audio mix)      |
+| [`@hyperframes/studio`](packages/studio)                         | Browser-based composition editor UI                         |
+| [`@hyperframes/player`](packages/player)                         | Embeddable `<hyperframes-player>` web component             |
+| [`@hyperframes/shader-transitions`](packages/shader-transitions) | WebGL shader transitions for compositions                   |
+
+## Skills
+
+HyperFrames ships [skills](https://github.com/vercel-labs/skills) that teach AI agents framework-specific patterns that generic docs don't cover.
+
 ```bash
-ghost-engine render ./my-composition --output video.mp4 --effects bloom,chromatic,filmgrain
+npx skills add heygen-com/hyperframes
 ```
 
-### Use a preset
+| Skill                     | What it teaches                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `hyperframes`             | HTML composition authoring, captions, TTS, audio-reactive animation, transitions                                    |
+| `hyperframes-cli`         | Dev-loop CLI: init, lint, inspect, preview, render, doctor                                                          |
+| `hyperframes-media`       | Asset preprocessing: tts (Kokoro), transcribe (Whisper), remove-background (u2net) — voice/model/codec selection    |
+| `hyperframes-registry`    | Block and component installation via `hyperframes add`                                                              |
+| `website-to-hyperframes`  | Capture a URL and turn it into a video — full website-to-video pipeline                                             |
+| `remotion-to-hyperframes` | Translate a Remotion (React) composition into a HyperFrames HTML composition                                        |
+| `gsap`                    | GSAP timelines for HyperFrames: paused registration, deterministic seeking, easing, sequencing, performance         |
+| `animejs`                 | Anime.js animations and timelines registered on `window.__hfAnime` for deterministic HyperFrames seeking            |
+| `css-animations`          | CSS keyframe animation patterns that HyperFrames can discover, pause, and seek                                      |
+| `lottie`                  | `lottie-web` and dotLottie players registered on `window.__hfLottie` with local assets and paused playback          |
+| `three`                   | Three.js scenes that render from HyperFrames `hf-seek` events and `window.__hfThreeTime` instead of wall-clock time |
+| `waapi`                   | Web Animations API `element.animate()` patterns seeked through `document.getAnimations()`                           |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Cloning the repo
+
+The repo uses [Git LFS](https://git-lfs.com) for golden regression-test baselines under `packages/producer/tests/**/output.mp4` (~240 MB of `.mp4` files). If you're cloning the full repo for development, install Git LFS first:
+
 ```bash
-ghost-engine render ./my-composition --output video.mp4 --preset cinematic
+# macOS
+brew install git-lfs
+
+# Ubuntu/Debian
+sudo apt install git-lfs
+
+# Windows
+winget install GitHub.GitLFS
+# (or install Git for Windows, which bundles Git LFS as an optional component)
+
+# Then (once, per machine)
+git lfs install
 ```
 
-Available presets:
-- `cinematic` — bloom, chromatic aberration, film grain, vignette, motion blur
-- `anime` — bloom, chromatic aberration, vignette
-- `neon` — bloom, chromatic aberration, vignette
-- `minimal` — film grain, vignette
-- `max` — all effects at maximum
+If you hit `git-lfs filter-process: command not found` during `git clone` or `npx skills add heygen-com/hyperframes`, install Git LFS and retry. You can also skip LFS content if you only need the source files:
 
-### Adjust intensity
 ```bash
-ghost-engine render ./my-composition --output video.mp4 --intensity 1.5
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/heygen-com/hyperframes.git
 ```
-
-### Plain HyperFrames render (no effects)
-```bash
-ghost-engine render ./my-composition --output video.mp4 --no-effects
-```
-
-### Custom resolution and FPS
-```bash
-ghost-engine render ./my-composition --output video.mp4 --width 3840 --height 2160 --fps 60
-```
-
-### Hardware GPU acceleration
-```bash
-ghost-engine render ./my-composition --output video.mp4 --gpu hardware
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  PASS 1: Base Render (HyperFrames)                         │
-│  ├── hyperframes render composition → base video            │
-│  ├── FFmpeg extracts → PNG frames                           │
-│  └── Deterministic seek + screenshot for each frame        │
-├─────────────────────────────────────────────────────────────┤
-│  PASS 2: GPU Post-Processing (Ghost Engine)                │
-│  ├── Puppeteer + WebGL2 headless browser                   │
-│  ├── Load PNG frame → WebGL texture                        │
-│  ├── Apply fragment shaders:                                │
-│  │   ├── Bloom (multi-tap gaussian)                        │
-│  │   ├── Chromatic Aberration (radial RGB split)           │
-│  │   ├── Film Grain (deterministic hash noise)             │
-│  │   ├── Vignette (cubic falloff + warm tint)              │
-│  │   └── Motion Blur (velocity-based directional)          │
-│  └── Capture result → new PNG frame                        │
-├─────────────────────────────────────────────────────────────┤
-│  PASS 3: Video Encode (FFmpeg)                             │
-│  └── Post-processed PNGs → H.264 + faststart               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Requirements
-
-- **Node.js** >= 22
-- **HyperFrames** CLI (installed automatically as dependency)
-- **FFmpeg** (must be in PATH)
-- **Chrome/Chromium** (for WebGL2 post-processing)
-- **GPU** (optional — SwiftShader fallback available)
 
 ## License
 
-MIT
+[Apache 2.0](LICENSE)
