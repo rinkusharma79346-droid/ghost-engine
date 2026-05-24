@@ -4,32 +4,25 @@
  * Architecture:
  * ┌─────────────────────────────────────────────────────────────┐
  * │  PASS 1: Base Render (HyperFrames)                         │
- * │  ├── hyperframes render composition → PNG frames            │
- * │  └── Deterministic seek + screenshot for each frame        │
+ * │  ├── hyperframes render composition → MP4 video             │
+ * │  └── FFmpeg extracts → PNG frame sequence                  │
  * ├─────────────────────────────────────────────────────────────┤
  * │  PASS 2: GPU Post-Processing (Ghost Engine)                │
- * │  ├── Load PNG frame as WebGL texture                       │
- * │  ├── Apply bloom, chromatic aberration, film grain,        │
- * │  │   vignette, motion blur via fragment shaders            │
- * │  └── Capture processed frame → new PNG                     │
+ * │  ├── Puppeteer + WebGL2 headless browser                   │
+ * │  ├── Each PNG frame → WebGL texture → shader pipeline     │
+ * │  └── Captured → new PNG frame                              │
  * ├─────────────────────────────────────────────────────────────┤
  * │  PASS 3: Video Encode (FFmpeg)                             │
- * │  └── Post-processed frames → H.264/H.265 video             │
+ * │  └── Post-processed PNGs → H.264 + bt709 + faststart       │
  * └─────────────────────────────────────────────────────────────┘
- *
- * This approach:
- * - Works with HyperFrames WITHOUT forking it
- * - Uses actual GPU shaders for AE-quality effects
- * - Is deterministic (same input = same output)
- * - Can be parallelized (process N frames simultaneously)
  */
 
 import { resolve, join, dirname, basename } from "pathe";
 import {
   readFileSync, writeFileSync, mkdirSync, rmSync, existsSync,
-  cpSync, readdirSync, statSync, renameSync
+  cpSync, readdirSync, statSync
 } from "fs";
-import { execSync, spawn } from "child_process";
+import { spawn } from "child_process";
 import consola from "consola";
 import { processFramesGPU } from "./gpu-postprocessor.js";
 
@@ -50,7 +43,8 @@ export async function render(options) {
     skipPostProcess = false,
   } = options;
 
-  const workDir = join(dirname(resolve(outputPath)), ".ghost-engine-work");
+  const absOutputPath = resolve(outputPath);
+  const workDir = join(dirname(absOutputPath), ".ghost-engine-work");
   const baseFramesDir = join(workDir, "base-frames");
   const processedFramesDir = join(workDir, "processed-frames");
 
@@ -102,7 +96,7 @@ export async function render(options) {
     consola.info("═══ PASS 3/3: Video Encode (FFmpeg) ═══");
     await encodeVideo({
       framesDir: processedFramesDir,
-      outputPath: resolve(outputPath),
+      outputPath: absOutputPath,
       fps,
       width,
       height,
@@ -114,7 +108,8 @@ export async function render(options) {
       rmSync(workDir, { recursive: true });
     }
 
-    consola.success(`🎬 Render complete: ${resolve(outputPath)}`);
+    const fileSize = statSync(absOutputPath).size / (1024 * 1024);
+    consola.success(`🎬 Render complete: ${absOutputPath} (${fileSize.toFixed(1)} MB)`);
 
   } catch (err) {
     consola.error("Render failed:", err.message);
@@ -135,7 +130,6 @@ async function renderBaseFrames({
   gpuMode,
   hyperframesArgs,
 }) {
-  // HyperFrames can output frames directly with --frames flag
   const baseVideoPath = join(baseFramesDir, "base-render.mp4");
 
   const hfArgs = [
@@ -143,10 +137,24 @@ async function renderBaseFrames({
     resolve(compositionPath),
     "--output", baseVideoPath,
     "--fps", String(fps),
-    "--width", String(width),
-    "--height", String(height),
-    "--gpu", gpuMode,
   ];
+
+  // GPU mode controls ONLY Chrome/WebGL browser GPU, NOT video encoding
+  // HyperFrames' --gpu flag uses h264_nvenc which requires NVIDIA GPU
+  // We always use software encoding (libx264) since GPU encoding often fails
+  if (gpuMode === "hardware") {
+    hfArgs.push("--browser-gpu");
+  } else {
+    hfArgs.push("--no-browser-gpu");
+  }
+
+  // Resolution preset
+  if (width >= 3840 && height >= 2160) {
+    hfArgs.push("--resolution", "landscape-4k");
+  } else if (width === 1080 && height === 1080) {
+    hfArgs.push("--resolution", "square");
+  }
+  // For custom resolutions, HyperFrames uses the composition's own dimensions
 
   if (hyperframesArgs) {
     hfArgs.push(...hyperframesArgs.split(" ").filter(Boolean));
@@ -156,11 +164,16 @@ async function renderBaseFrames({
 
   await executeCommand("hyperframes", hfArgs);
 
-  // Extract frames from the video using FFmpeg
+  if (!existsSync(baseVideoPath)) {
+    throw new Error("HyperFrames did not produce output video");
+  }
+
+  // Extract frames from the base video using FFmpeg
   consola.info("Extracting frames from base render...");
   const ffmpegArgs = [
+    "-y",
     "-i", baseVideoPath,
-    "-q:v", "2",
+    "-q:v", "2",                    // High quality PNG
     join(baseFramesDir, "frame_%06d.png"),
   ];
   await executeCommand("ffmpeg", ffmpegArgs);
@@ -169,13 +182,16 @@ async function renderBaseFrames({
   if (existsSync(baseVideoPath)) rmSync(baseVideoPath);
 
   const frameCount = readdirSync(baseFramesDir).filter(f => f.endsWith(".png")).length;
+  if (frameCount === 0) {
+    throw new Error("No frames extracted from base render");
+  }
   consola.info(`Extracted ${frameCount} base frames`);
 }
 
 // ─── PASS 3: FFmpeg Video Encode ────────────────────────────────────
 
 async function encodeVideo({ framesDir, outputPath, fps, width, height }) {
-  // Sort frames to ensure correct order
+  // Verify frames exist
   const frames = readdirSync(framesDir)
     .filter(f => f.endsWith(".png"))
     .sort();
@@ -187,22 +203,27 @@ async function encodeVideo({ framesDir, outputPath, fps, width, height }) {
   consola.info(`Encoding ${frames.length} frames → ${outputPath}`);
 
   const ffmpegArgs = [
+    "-y",
     "-framerate", String(fps),
     "-i", join(framesDir, "frame_%06d.png"),
     "-c:v", "libx264",
     "-preset", "slow",
-    "-crf", "18",           // High quality
+    "-crf", "18",                    // High quality (0=lossless, 51=worst)
     "-pix_fmt", "yuv420p",
     "-movflags", "+faststart",
+    // Correct color space for web playback
     "-color_range", "tv",
     "-colorspace", "bt709",
     "-color_primaries", "bt709",
     "-color_trc", "bt709",
-    "-y",
     outputPath,
   ];
 
   await executeCommand("ffmpeg", ffmpegArgs);
+
+  if (!existsSync(outputPath)) {
+    throw new Error("FFmpeg did not produce output video");
+  }
 }
 
 // ─── Command Execution Helper ───────────────────────────────────────
@@ -210,13 +231,18 @@ async function encodeVideo({ framesDir, outputPath, fps, width, height }) {
 function executeCommand(command, args) {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
-      stdio: "inherit",
+      stdio: ["ignore", "inherit", "inherit"],  // stdin: ignore prevents FFmpeg interactive mode
       env: process.env,
+    });
+
+    let stderr = "";
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
     });
 
     proc.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`${command} exited with code ${code}`));
+      else reject(new Error(`${command} exited with code ${code}\n${stderr.slice(-500)}`));
     });
 
     proc.on("error", (err) => {
